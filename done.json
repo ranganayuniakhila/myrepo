@@ -1,0 +1,312 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "functions": [],
+    "variables": {},
+    "resources": [{
+        "name": "[toLower('ganawinstorage')]",
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2021-04-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "ganawin Storage Account"
+        },
+        "sku": {
+            "name": "Standard_LRS"
+        },
+        "kind": "Storage"
+    },
+    {
+        "name": "[toLower('ganalinuxstorage')]",
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2021-04-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "ganalinux Storage Account"
+        },
+        "sku": {
+            "name": "Standard_LRS"
+        },
+        "kind": "Storage"
+    },
+    {
+        "name": "ganawin-PublicIP",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "PublicIPAddress"
+        },
+        "properties": {
+            "publicIPAllocationMethod": "Dynamic",
+            "dnsSettings": {
+                "domainNameLabel": "[toLower('ganawin')]"
+            }
+        }
+    },
+    {
+        "name": "ganalinux-PublicIP",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "tags": {
+            "displayName": "PublicIPAddress"
+        },
+        "properties": {
+            "publicIPAllocationMethod": "Dynamic",
+            "dnsSettings": {
+                "domainNameLabel": "[toLower('ganalinux')]"
+            }
+        }
+    },
+    {
+        "name": "ganawin-nsg",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": [
+                {
+                    "name": "nsgRule1",
+                    "properties": {
+                        "description": "description",
+                        "protocol": "Tcp",
+                        "sourcePortRange": "*",
+                        "destinationPortRange": "3389",
+                        "sourceAddressPrefix": "*",
+                        "destinationAddressPrefix": "*",
+                        "access": "Allow",
+                        "priority": 100,
+                        "direction": "Inbound"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "ganalinux-nsg",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": [
+                {
+                    "name": "nsgRule1",
+                    "properties": {
+                        "description": "description",
+                        "protocol": "Tcp",
+                        "sourcePortRange": "*",
+                        "destinationPortRange": "22",
+                        "sourceAddressPrefix": "*",
+                        "destinationAddressPrefix": "*",
+                        "access": "Allow",
+                        "priority": 100,
+                        "direction": "Inbound"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "ganawin-VirtualNetwork",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/networkSecurityGroups', 'ganawin-nsg')]",
+            "[resourceId('Microsoft.Network/networkSecurityGroups', 'ganalinux-nsg')]"
+        ],
+        "tags": {
+            "displayName": "ganawin-VirtualNetwork"
+        },
+        "properties": {
+            "addressSpace": {
+                "addressPrefixes": [
+                    "10.0.0.0/16"
+                ]
+            },
+            "subnets": [
+                {
+                    "name": "ganawin-VirtualNetwork-Subnet1",
+                    "properties": {
+                        "addressPrefix": "10.0.0.0/24",
+                        "networkSecurityGroup": {
+                            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'ganawin-nsg')]"
+                        }
+                    }
+                },
+                {
+                    "name": "ganawin-VirtualNetwork-Subnet2",
+                    "properties": {
+                        "addressPrefix": "10.0.1.0/24",
+                        "networkSecurityGroup": {
+                            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'ganalinux-nsg')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "ganawin-NetworkInterface",
+        "type": "Microsoft.Network/networkInterfaces",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/publicIPAddresses', 'ganawin-PublicIP')]",
+            "[resourceId('Microsoft.Network/virtualNetworks', 'ganawin-VirtualNetwork')]"
+        ],
+        "tags": {
+            "displayName": "ganawin Network Interface"
+        },
+        "properties": {
+            "ipConfigurations": [
+                {
+                    "name": "ipConfig1",
+                    "properties": {
+                        "privateIPAllocationMethod": "Dynamic",
+                        "publicIPAddress": {
+                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'ganawin-PublicIP')]"
+                        },
+                        "subnet": {
+                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'ganawin-VirtualNetwork', 'ganawin-VirtualNetwork-Subnet1')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "name": "ganalinux-NetworkInterface",
+        "type": "Microsoft.Network/networkInterfaces",
+        "apiVersion": "2020-11-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Network/publicIPAddresses', 'ganalinux-PublicIP')]",
+            "[resourceId('Microsoft.Network/virtualNetworks', 'ganawin-VirtualNetwork')]"
+        ],
+        "tags": {
+            "displayName": "ganalinux-NetworkInterface"
+        },
+        "properties": {
+            "ipConfigurations": [
+                {
+                    "name": "ipConfig1",
+                    "properties": {
+                        "privateIPAllocationMethod": "Dynamic",
+                        "publicIPAddress": {
+                            "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'ganalinux-PublicIP')]"
+                        },
+                        "subnet": {
+                            "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'ganawin-VirtualNetwork', 'ganawin-VirtualNetwork-Subnet2')]"
+                        }
+                    }
+                }
+            ]
+        }
+    },
+// *********************************************************************************
+    {
+        "name": "ganawin",
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-03-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', toLower('ganawinstorage'))]",
+            "[resourceId('Microsoft.Network/networkInterfaces', 'ganawin-NetworkInterface')]"
+        ],
+        "tags": {
+            "displayName": "ganawin"
+        },
+        "properties": {
+            "hardwareProfile": {
+                "vmSize": "Standard_A2_v2"
+            },
+            "osProfile": {
+                "computerName": "ganawin",
+               "adminUsername": "saiganesh",
+                "adminPassword": "Vm@123456789"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "MicrosoftWindowsServer",
+                    "offer": "WindowsServer",
+                    "sku": "2012-R2-Datacenter",
+                    "version": "latest"
+                },
+                "osDisk": {
+                    "name": "ganawinOSDisk",
+                    "caching": "ReadWrite",
+                    "createOption": "FromImage"
+                }
+            },
+            "networkProfile": {
+                "networkInterfaces": [
+                    {
+                        "id": "[resourceId('Microsoft.Network/networkInterfaces', 'ganawin-NetworkInterface')]"
+                    }
+                ]
+            },
+            "diagnosticsProfile": {
+                "bootDiagnostics": {
+                    "enabled": true,
+                    "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', toLower('ganawinstorage'))).primaryEndpoints.blob]"
+                }
+            }
+        }
+    },
+// ****************************************************************************************
+    
+    {
+        "name": "ganalinux",
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-03-01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', toLower('ganalinuxstorage'))]",
+            "[resourceId('Microsoft.Network/networkInterfaces', 'ganalinux-NetworkInterface')]"
+        ],
+        "tags": {
+            "displayName": "ganalinux"
+        },
+        "properties": {
+            "hardwareProfile": {
+                "vmSize": "Standard_A2_v2"
+            },
+            "osProfile": {
+                "computerName": "ganalinux",
+                "adminUsername": "saiganesh",
+                "adminPassword": "Vm@123456789"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "Canonical",
+                    "offer": "UbuntuServer",
+                    "sku": "16.04-LTS",
+                    "version": "latest"
+                },
+                "osDisk": {
+                    "name": "ganalinux-OSDisk",
+                    "caching": "ReadWrite",
+                    "createOption": "FromImage"
+                }
+            },
+            "networkProfile": {
+                "networkInterfaces": [
+                    {
+                        "id": "[resourceId('Microsoft.Network/networkInterfaces', 'ganalinux-NetworkInterface')]"
+                    }
+                ]
+            },
+            "diagnosticsProfile": {
+                "bootDiagnostics": {
+                    "enabled": true,
+                    "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts/', toLower('ganalinuxstorage'))).primaryEndpoints.blob]"
+                }
+            }
+        }
+    }
+    ],
+    "outputs": {}
+}
